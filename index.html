@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d10">
+<title>无缝播放器</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<style>
+:root { --bg:#0b0d10; --panel:#15181d; --line:#252a31; --fg:#eef1f5; --dim:#8b95a3; --acc:#e8443a; }
+* { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+  font-family:-apple-system,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif; }
+body { display:grid; grid-template-columns: minmax(0,1fr) 460px; height:100vh; overflow:hidden; }
+button { font:inherit; color:inherit; background:none; border:0; cursor:pointer; }
+#browse { display:flex; flex-direction:column; min-height:0; border-right:1px solid var(--line); }
+header { display:flex; align-items:center; gap:16px; padding:20px 28px; }
+header h1 { font-size:32px; margin:0; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#btn-back { font-size:28px; width:72px; height:72px; border-radius:18px; background:var(--panel); }
+#list { overflow-y:auto; padding:0 20px 24px; display:flex; flex-direction:column; gap:10px; }
+.album { display:flex; gap:20px; align-items:center; padding:14px; border-radius:20px; background:var(--panel); text-align:left; min-height:112px; }
+.album img { width:84px; height:84px; border-radius:12px; object-fit:cover; background:#222; }
+.album b { display:block; font-size:26px; } .album span { color:var(--dim); font-size:20px; }
+.track { display:grid; grid-template-columns:56px 1fr auto; align-items:center; gap:12px; min-height:84px; padding:0 22px; border-radius:16px; background:var(--panel); text-align:left; font-size:24px; }
+.track i { color:var(--dim); font-style:normal; } .track span { color:var(--dim); font-size:20px; }
+.track.on { outline:3px solid var(--acc); } .track.on b { color:var(--acc); }
+.playall { display:block; font-weight:600; color:var(--acc); }
+#now { display:flex; flex-direction:column; padding:28px; gap:18px; background:var(--panel); min-height:0; overflow-y:auto; }
+#np-cover { width:100%; max-width:300px; aspect-ratio:1; align-self:center; border-radius:24px; object-fit:cover; background:#222; }
+#np-title { font-size:32px; font-weight:700; text-align:center; } #np-sub { font-size:20px; color:var(--dim); text-align:center; }
+.times { display:flex; justify-content:space-between; color:var(--dim); font-size:20px; font-variant-numeric:tabular-nums; }
+input[type=range] { width:100%; height:48px; accent-color:var(--acc); }
+.ctrl { display:flex; justify-content:center; gap:24px; }
+.ctrl button { width:104px; height:104px; border-radius:50%; background:#232830; font-size:40px; }
+#btn-play { width:128px; height:128px; background:var(--acc); font-size:52px; }
+.modes { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.modes button { min-height:72px; border-radius:16px; background:#232830; font-size:22px; }
+.modes button.on { background:var(--fg); color:var(--bg); font-weight:700; }
+.row { display:flex; align-items:center; gap:14px; font-size:20px; color:var(--dim); }
+.row input[type=checkbox] { width:32px; height:32px; accent-color:var(--acc); }
+#btn-cache { min-height:64px; border-radius:16px; background:#232830; font-size:20px; }
+#status { color:var(--acc); min-height:24px; font-size:20px; text-align:center; }
+@media (max-width: 900px) { body { grid-template-columns:1fr; grid-template-rows:1fr auto; } #np-cover { display:none; } }
+</style>
+</head>
+<body>
+<section id="browse">
+  <header><button id="btn-back" aria-label="返回" hidden>‹</button><h1 id="view-title">专辑</h1></header>
+  <div id="list"></div>
+</section>
+<section id="now">
+  <img id="np-cover" alt="">
+  <div><div id="np-title">未在播放</div><div id="np-sub"></div></div>
+  <div><input id="seek" type="range" min="0" max="1" step="0.1" value="0" aria-label="进度">
+    <div class="times"><span id="t-cur">0:00</span><span id="t-dur">0:00</span></div></div>
+  <div class="ctrl">
+    <button id="btn-prev" aria-label="上一首">⏮</button>
+    <button id="btn-play" aria-label="播放">▶</button>
+    <button id="btn-next" aria-label="下一首">⏭</button>
+  </div>
+  <div class="modes"><button id="mode-gapless">无缝衔接</button><button id="mode-xf">交叉淡入淡出</button></div>
+  <div><div class="row">淡入淡出时长 <b id="xf-val" style="margin-left:auto;color:var(--fg)">6 秒</b></div>
+    <input id="xf" type="range" min="0" max="12" step="1" value="6" aria-label="交叉淡入时长"></div>
+  <div class="row">同一专辑的连续曲目始终无缝，不做淡入淡出</div>
+  <label class="row"><input id="me" type="checkbox"> 经媒体元素输出（方向盘 / 系统媒体控制，需实测）</label>
+  <button id="btn-cache">离线缓存全部歌曲</button>
+  <div id="status"></div>
+  <audio id="sink" hidden></audio>
+</section>
+<script type="module" src="app.js"></script>
+</body>
+</html>

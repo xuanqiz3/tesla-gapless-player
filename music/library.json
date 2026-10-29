@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "tracks": [
+    {
+      "title": "Carefree",
+      "artist": "Kevin MacLeod",
+      "album": "Royalty Free",
+      "track": null,
+      "disc": null,
+      "file": "carefree.mp3",
+      "cover": null,
+      "duration": 205.14,
+      "sampleRate": 44100,
+      "gapless": null
+    },
+    {
+      "title": "Fluffing a Duck",
+      "artist": "Kevin MacLeod",
+      "album": "Royalty Free",
+      "track": null,
+      "disc": null,
+      "file": "fluffing-a-duck.mp3",
+      "cover": null,
+      "duration": 67.368,
+      "sampleRate": 48000,
+      "gapless": null
+    },
+    {
+      "title": "Local Elevator - Elevator",
+      "artist": "Kevin MacLeod",
+      "album": "Royalty Free",
+      "track": null,
+      "disc": null,
+      "file": "local-forecast-elevator.mp3",
+      "cover": null,
+      "duration": 189.205,
+      "sampleRate": 44100,
+      "gapless": null
+    },
+    {
+      "title": "Sneaky Snitch",
+      "artist": "Kevin MacLeod",
+      "album": "Royalty Free",
+      "track": null,
+      "disc": null,
+      "file": "sneaky-snitch.mp3",
+      "cover": null,
+      "duration": 136.62,
+      "sampleRate": 44100,
+      "gapless": null
+    },
+    {
+      "title": "Wallpaper (Part 1)",
+      "artist": "Kevin MacLeod",
+      "album": "Wallpaper — Gapless Split",
+      "track": 1,
+      "disc": null,
+      "file": "gapless-test/wallpaper-part1.flac",
+      "cover": null,
+      "duration": 100.0,
+      "sampleRate": 44100,
+      "gapless": null
+    },
+    {
+      "title": "Wallpaper (Part 2)",
+      "artist": "Kevin MacLeod",
+      "album": "Wallpaper — Gapless Split",
+      "track": 2,
+      "disc": null,
+      "file": "gapless-test/wallpaper-part2.flac",
+      "cover": null,
+      "duration": 120.056,
+      "sampleRate": 44100,
+      "gapless": null
+    },
+    {
+      "title": "Wallpaper (Part 1)",
+      "artist": "Kevin MacLeod",
+      "album": "Wallpaper — Gapless Split (MP3)",
+      "track": 1,
+      "disc": null,
+      "file": "gapless-test/wallpaper-part1.mp3",
+      "cover": null,
+      "duration": 100.049,
+      "sampleRate": 44100,
+      "gapless": {
+        "encoderDelay": 1105,
+        "padding": 1055,
+        "validSamples": 4410000,
+        "source": "LAME"
+      }
+    },
+    {
+      "title": "Wallpaper (Part 2)",
+      "artist": "Kevin MacLeod",
+      "album": "Wallpaper — Gapless Split (MP3)",
+      "track": 2,
+      "disc": null,
+      "file": "gapless-test/wallpaper-part2.mp3",
+      "cover": null,
+      "duration": 120.085,
+      "sampleRate": 44100,
+      "gapless": {
+        "encoderDelay": 1105,
+        "padding": 191,
+        "validSamples": 5294448,
+        "source": "LAME"
+      }
+    }
+  ]
+}
