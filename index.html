@@ -105,8 +105,16 @@ input[type=range] { width:100%; height:44px; accent-color:var(--acc); }
 .ctrl .sm { width:64px; height:64px; font-size:22px; }
 .vol { display:flex; align-items:center; gap:10px; }
 .vol button { width:52px; height:52px; border-radius:12px; background:#232830; font-size:22px; flex-shrink:0; }
-.modes { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-.modes button { min-height:64px; border-radius:14px; background:#232830; font-size:20px; }
+.modes { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+.modes button { min-height:64px; border-radius:14px; background:#232830; font-size:19px; line-height:1.2; padding:4px 6px; }
+#mode-tip { color:var(--dim); font-size:16px; }
+.compare { background:#16241c; border:1px solid #2c5a3f; border-radius:16px; padding:14px 16px; font-size:18px; line-height:1.5; }
+.compare p { margin:6px 0; color:#cfe9da; }
+.cmp-btns { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
+.cmp-btns button { min-height:64px; border-radius:14px; background:#232830; font-size:19px; font-weight:600; }
+.cmp-btns button[data-m=gapless] { background:var(--on); color:#062; }
+.bg-note { font-size:15px; color:var(--dim); line-height:1.5; border:1px dashed var(--line); border-radius:12px; padding:10px 12px; }
+.bg-note b { color:var(--fg); }
 .modes button.on { background:var(--fg); color:var(--bg); font-weight:700; }
 .row { display:flex; align-items:center; gap:12px; font-size:18px; color:var(--dim); flex-wrap:wrap; }
 .row input[type=checkbox] { width:28px; height:28px; accent-color:var(--acc); }
@@ -145,7 +153,7 @@ input[type=range] { width:100%; height:44px; accent-color:var(--acc); }
     <button data-tab="favorites">收藏</button>
     <button data-tab="recent">最近播放</button>
   </nav>
-  <div class="hint">车机提示：请先点「国内连通性试听」里的「连通性测试」。播放控制在底部迷你栏，点曲名或「展开」可开完整面板。</div>
+  <div class="hint">车机提示：想听无缝开/关的区别，点「无缝对比测试」专辑。切到其他画面时请别关闭浏览器标签，后台才能继续播放。播放控制在底部迷你栏，点「展开」可开完整面板。</div>
   <div id="list"></div>
 </section>
 
@@ -191,7 +199,8 @@ input[type=range] { width:100%; height:44px; accent-color:var(--acc); }
     <input id="vol" type="range" min="0" max="100" step="1" value="100" aria-label="音量">
     <b id="vol-val" style="min-width:3.5em;text-align:right;color:var(--fg);font-size:18px">100%</b>
   </div>
-  <div class="modes"><button id="mode-gapless">无缝衔接</button><button id="mode-xf">交叉淡入淡出</button></div>
+  <div class="modes"><button id="mode-gapless">无缝衔接</button><button id="mode-xf">交叉淡入淡出</button><button id="mode-normal">普通<br><small>有间隙·对比用</small></button></div>
+  <div id="mode-tip"></div>
   <div><div class="row">淡入淡出时长 <b id="xf-val" style="margin-left:auto;color:var(--fg)">6 秒</b></div>
     <input id="xf" type="range" min="0" max="12" step="1" value="6" aria-label="交叉淡入时长"></div>
   <div class="row">同一专辑的连续曲目始终无缝，不做淡入淡出</div>
@@ -216,10 +225,13 @@ input[type=range] { width:100%; height:44px; accent-color:var(--acc); }
       <button data-sleep="60">60 分</button>
     </div>
   </div>
+  <label class="row"><input id="ka" type="checkbox"> 后台保活（播放时同时播放一段几乎无声的媒体音轨，让浏览器把页面当作“正在播放”，减少切到后台被挂起；默认开）</label>
+  <div class="bg-note"><b>后台播放说明：</b>想切到导航等其他画面时，<b>直接切走，不要关闭浏览器或这个标签页</b>。浏览器被完全关闭或被系统杀掉后，网页无法继续播放——这是浏览器限制，网页做不到。若车机支持「添加到主屏幕 / 安装」，以应用方式打开会更稳。被系统暂停后，回到本页会自动尝试恢复。</div>
   <label class="row"><input id="me" type="checkbox"> 经媒体元素输出（方向盘 / 系统媒体控制，部分车机可能无声，默认关闭）</label>
   <button id="btn-cache">离线缓存全部歌曲</button>
   <div id="status"></div>
   <audio id="sink" hidden playsinline></audio>
+  <audio id="keepalive" hidden playsinline preload="auto"></audio>
 </section>
 <script type="module" src="app.js"></script>
 </body>

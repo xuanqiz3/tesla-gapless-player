@@ -1,8 +1,10 @@
 // Service Worker：应用外壳预缓存；音乐文件走“缓存优先”（仅当已被“离线缓存全部歌曲”存入时）。
-const SHELL = 'tp-shell-v3', MUSIC = 'tp-music-v1';
+const SHELL = 'tp-shell-v4', MUSIC = 'tp-music-v1';
 const ASSETS = ['./', 'index.html', 'app.js', 'engine.js', 'manifest.json', 'icons/icon-192.png', 'icons/icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(SHELL).then(c => c.addAll(ASSETS))); self.skipWaiting(); });
-self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+self.addEventListener('activate', e => e.waitUntil(caches.keys()
+  .then(ks => Promise.all(ks.filter(k => k.startsWith('tp-shell-') && k !== SHELL).map(k => caches.delete(k))))
+  .then(() => self.clients.claim())));
 self.addEventListener('fetch', e => {
   const u = new URL(e.request.url);
   if (u.origin !== location.origin || e.request.method !== 'GET') return;

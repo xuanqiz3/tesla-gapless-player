@@ -2,40 +2,6 @@
   "version": 1,
   "tracks": [
     {
-      "title": "Wallpaper (Part 1)",
-      "artist": "Kevin MacLeod",
-      "album": "Wallpaper — Gapless Split",
-      "track": 1,
-      "disc": null,
-      "file": "gapless-test/wallpaper-part1.mp3",
-      "cover": null,
-      "duration": 100.049,
-      "sampleRate": 44100,
-      "gapless": {
-        "encoderDelay": 1105,
-        "padding": 1055,
-        "validSamples": 4410000,
-        "source": "LAME"
-      }
-    },
-    {
-      "title": "Wallpaper (Part 2)",
-      "artist": "Kevin MacLeod",
-      "album": "Wallpaper — Gapless Split",
-      "track": 2,
-      "disc": null,
-      "file": "gapless-test/wallpaper-part2.mp3",
-      "cover": null,
-      "duration": 120.085,
-      "sampleRate": 44100,
-      "gapless": {
-        "encoderDelay": 1105,
-        "padding": 191,
-        "validSamples": 5294448,
-        "source": "LAME"
-      }
-    },
-    {
       "title": "连通性测试（请先点这首）",
       "artist": "系统测试音",
       "album": "国内连通性试听",
@@ -100,6 +66,57 @@
         "encoderDelay": 1105,
         "padding": 1127,
         "validSamples": 793800,
+        "source": "LAME"
+      }
+    },
+    {
+      "title": "无缝对比 第1段",
+      "artist": "无缝对比测试音（合成）",
+      "album": "无缝对比测试",
+      "track": 1,
+      "disc": null,
+      "file": "compare/compare-part1.mp3",
+      "cover": null,
+      "duration": 12.042,
+      "sampleRate": 44100,
+      "gapless": {
+        "encoderDelay": 1105,
+        "padding": 50,
+        "validSamples": 529917,
+        "source": "LAME"
+      }
+    },
+    {
+      "title": "无缝对比 第2段",
+      "artist": "无缝对比测试音（合成）",
+      "album": "无缝对比测试",
+      "track": 2,
+      "disc": null,
+      "file": "compare/compare-part2.mp3",
+      "cover": null,
+      "duration": 11.755,
+      "sampleRate": 44100,
+      "gapless": {
+        "encoderDelay": 1105,
+        "padding": 1089,
+        "validSamples": 516206,
+        "source": "LAME"
+      }
+    },
+    {
+      "title": "无缝对比 第3段",
+      "artist": "无缝对比测试音（合成）",
+      "album": "无缝对比测试",
+      "track": 3,
+      "disc": null,
+      "file": "compare/compare-part3.mp3",
+      "cover": null,
+      "duration": 12.33,
+      "sampleRate": 44100,
+      "gapless": {
+        "encoderDelay": 1105,
+        "padding": 1152,
+        "validSamples": 541487,
         "source": "LAME"
       }
     },

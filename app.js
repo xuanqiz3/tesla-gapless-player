@@ -7,7 +7,7 @@ const trackKey = t => t && t.file;
 
 const settings = Object.assign({
   mode: 'gapless', crossfade: 6, mediaEl: false,
-  repeat: 'off', shuffle: false, volume: 1, muted: false,
+  repeat: 'off', shuffle: false, volume: 1, muted: false, keepAlive: true,
 }, JSON.parse(localStorage.getItem('tp-settings') || '{}'));
 // 车机优先：旧版默认 mediaEl=true 可能导致 MediaStream 无声，强制纠正一次
 if (!localStorage.getItem('tp-mediael-v2')) {
@@ -33,6 +33,11 @@ let view = { type: 'albums' }; // albums | album | songs | artists | artist | fa
 let searchQ = '';
 let sleepTimer = null, sleepUntil = 0, sleepTick = null;
 let showQueue = false, showSleep = false, sheetOpen = false;
+let wantPlay = false;          // 用户意图：正在播放（用于后台被挂起后自动恢复）
+let normalGapTimer = null;     // 「普通（有间隙）」模式的演示间隙定时器
+const NORMAL_GAP = 0.3;        // 普通模式演示间隙（秒），仅用于对比
+const bg = { keepEl: null, wakeLock: null, resumeTries: 0, autoResumes: 0, lastState: '', events: [] };
+const bgLog = e => { bg.events.push(`${new Date().toTimeString().slice(0, 8)} ${e}`); if (bg.events.length > 30) bg.events.shift(); };
 
 function ensureAudio() {
   if (ctx) return;
@@ -51,6 +56,7 @@ function ensureAudio() {
     }
   }
   engine = new GaplessEngine(ctx, out);
+  ctx.onstatechange = onCtxState;
   applySettings();
   window.__engine = engine; window.__ctx = ctx;
 }
@@ -63,7 +69,7 @@ function openSheet(open = true) {
 }
 function applySettings() {
   if (!engine) return;
-  engine.gaplessOnly = settings.mode === 'gapless';
+  engine.gaplessOnly = settings.mode !== 'crossfade';
   engine.crossfade = settings.crossfade;
   engine.setVolume(settings.muted ? 0 : settings.volume);
 }
@@ -148,10 +154,14 @@ async function playIndex(i, seek = 0) {
   if (i < 0 || i >= queue.length) return stop();
   ensureAudio();
   const my = ++gen;
+  if (normalGapTimer) { clearTimeout(normalGapTimer); normalGapTimer = null; }
   engine.stopAll(); curVoice = nextVoice = null; qi = i;
+  wantPlay = true;
+  keepAliveStart();            // 必须在用户手势的同步阶段启动，之后的 await 会丢失手势
+  requestWake();
   pushRecent(queue[i]);
   render(); setStatus('加载中…');
-  if (ctx.state !== 'running') await ctx.resume();
+  if (ctx.state !== 'running') await ctx.resume().catch(() => {});
   if (audioEl) audioEl.play().catch(() => {});
   let buf;
   const trackUrl = url(queue[i]);
@@ -174,13 +184,19 @@ function hookEnd(voice, my) {
   voice.src.addEventListener('ended', () => {
     if (my !== gen || voice !== curVoice || nextVoice) return;
     const ni = nextIndex();
-    if (ni >= 0) playIndex(ni);
-    else stop();
+    if (ni < 0) return stop();
+    if (settings.mode === 'normal') {
+      // 普通播放器行为（对比用）：上一首结束后才开始加载下一首，并固定插入演示间隙
+      curVoice = null; render();
+      setStatus(`普通模式：曲间演示间隙 ${NORMAL_GAP} 秒（对比用）`);
+      normalGapTimer = setTimeout(() => { normalGapTimer = null; if (my === gen) playIndex(ni); }, NORMAL_GAP * 1000);
+    } else playIndex(ni);
   });
 }
 
 async function prepareNext(my) {
   if (!curVoice) return;
+  if (settings.mode === 'normal') return;   // 普通模式不预排队，模拟普通播放器
   let ni;
   if (settings.repeat === 'one') ni = qi;
   else if (qi + 1 < queue.length) ni = qi + 1;
@@ -230,8 +246,14 @@ function togglePlay() {
     return playIndex(qi < 0 ? 0 : qi);
   }
   if (!curVoice) return playIndex(qi);
-  if (ctx.state === 'running') { ctx.suspend(); playing = false; }
-  else { ctx.resume(); audioEl && audioEl.play().catch(() => {}); playing = true; }
+  if (playing) {
+    wantPlay = false; playing = false;
+    ctx.suspend(); keepAliveStop(); releaseWake();
+  } else {
+    wantPlay = true; playing = true;
+    keepAliveStart(); requestWake();
+    ctx.resume(); audioEl && audioEl.play().catch(() => {});
+  }
   render(); updateMediaSession();
 }
 
@@ -251,7 +273,77 @@ function prev() {
   if (pi >= 0) playIndex(pi);
 }
 function seek(t) { if (qi >= 0) playIndex(qi, t); }
-function stop() { gen++; engine && engine.stopAll(); curVoice = nextVoice = null; playing = false; render(); updateMediaSession(); }
+function stop() {
+  gen++; if (normalGapTimer) { clearTimeout(normalGapTimer); normalGapTimer = null; }
+  engine && engine.stopAll(); curVoice = nextVoice = null; playing = false;
+  wantPlay = false; keepAliveStop(); releaseWake();
+  render(); updateMediaSession();
+}
+
+// ---------- 后台播放保活 ----------
+// 说明：网页无法保证被系统“杀掉/关闭标签”后继续播放；这里做的是尽量减少被挂起的概率，
+// 被挂起后（用户意图仍是播放）自动恢复。
+function keepAliveUrl() {
+  // 6 秒、8 kHz、8-bit 单声道 WAV，内容为 ±1 级的极低电平抖动（约 -48 dBFS 以下，基本听不到）。
+  // 时长 ≥5 秒是因为部分 Chromium 会忽略过短的媒体，不把页面当作“正在播放媒体”。
+  const sr = 8000, n = sr * 6, buf = new ArrayBuffer(44 + n), v = new DataView(buf);
+  const w = (o, str) => [...str].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  w(0, 'RIFF'); v.setUint32(4, 36 + n, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true); v.setUint32(28, sr, true);
+  v.setUint16(32, 1, true); v.setUint16(34, 8, true); w(36, 'data'); v.setUint32(40, n, true);
+  for (let i = 0; i < n; i++) v.setUint8(44 + i, 128 + (i % 2 ? 1 : -1));
+  return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+}
+function keepAliveStart() {
+  if (!settings.keepAlive) return;
+  if (!bg.keepEl) {
+    const el = $('#keepalive');
+    el.src = keepAliveUrl(); el.loop = true; el.volume = 1;
+    el.addEventListener('pause', () => { if (wantPlay && settings.keepAlive) bgLog('保活音轨被暂停'); });
+    bg.keepEl = el;
+  }
+  if (bg.keepEl.paused) bg.keepEl.play().then(() => bgLog('保活音轨播放中')).catch(e => bgLog('保活音轨无法播放：' + (e && e.name || e)));
+}
+function keepAliveStop() { if (bg.keepEl && !bg.keepEl.paused) bg.keepEl.pause(); }
+
+async function requestWake() {
+  if (!('wakeLock' in navigator) || document.visibilityState !== 'visible' || bg.wakeLock) return;
+  try {
+    bg.wakeLock = await navigator.wakeLock.request('screen');
+    bg.wakeLock.addEventListener('release', () => { bg.wakeLock = null; });
+    bgLog('已申请屏幕常亮');
+  } catch (e) { bg.wakeLock = null; }   // 不支持或被拒：静默忽略
+}
+function releaseWake() { if (bg.wakeLock) { bg.wakeLock.release().catch(() => {}); bg.wakeLock = null; } }
+
+function tryResume(reason) {
+  if (!ctx || !wantPlay) return;
+  if (ctx.state !== 'running' && ctx.state !== 'closed') {
+    ctx.resume().then(() => {
+      if (ctx.state === 'running') { bg.autoResumes++; bg.resumeTries = 0; bgLog('已自动恢复播放（' + reason + '）'); playing = true; render(); updateMediaSession(); }
+    }).catch(() => {});
+  }
+  if (settings.keepAlive) keepAliveStart();
+  if (audioEl && audioEl.paused) audioEl.play().catch(() => {});
+}
+function onCtxState() {
+  bg.lastState = ctx.state; bgLog('AudioContext → ' + ctx.state);
+  if (!wantPlay || ctx.state === 'running' || ctx.state === 'closed') { bg.resumeTries = 0; return; }
+  // suspended / interrupted 且用户意图仍是播放：被系统挂起，退避重试恢复
+  if (bg.resumeTries < 8) {
+    const delay = 200 * Math.pow(1.6, bg.resumeTries++);
+    setTimeout(() => tryResume('statechange'), delay);
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  bgLog('visibility=' + document.visibilityState);
+  tryResume('visibilitychange');
+  if (document.visibilityState === 'visible' && wantPlay) requestWake();
+});
+window.addEventListener('pagehide', () => tryResume('pagehide'));
+window.addEventListener('pageshow', () => tryResume('pageshow'));
+window.addEventListener('focus', () => tryResume('focus'));
+document.addEventListener('resume', () => tryResume('lifecycle-resume'));
 
 function playNow(list, i) { setQueue(list, i); playIndex(qi < 0 ? 0 : qi); }
 
@@ -385,6 +477,7 @@ if ('mediaSession' in navigator) {
   h('play', () => { if (!playing) togglePlay(); });
   h('pause', () => { if (playing) togglePlay(); });
   h('previoustrack', prev); h('nexttrack', next);
+  h('stop', () => stop());
   h('seekto', d => seek(d.seekTime));
   h('seekbackward', d => curVoice && seek(Math.max(engine.position(curVoice) - (d.seekOffset || 10), 0)));
   h('seekforward', d => curVoice && seek(engine.position(curVoice) + (d.seekOffset || 10)));
@@ -465,6 +558,30 @@ function renderQueuePanel() {
   });
 }
 
+const COMPARE_ALBUM = '无缝对比测试';
+const MODE_TIPS = {
+  gapless: '无缝衔接：下一首提前排在上一首最后一个采样之后，曲间零停顿。',
+  crossfade: '交叉淡入淡出：跨专辑时提前叠播并淡入淡出；同专辑连续曲目仍强制无缝。',
+  normal: `普通（有间隙）：上一首播完才加载下一首，并固定插入约 ${NORMAL_GAP} 秒静音——仅用于和无缝对比。`,
+};
+function setMode(m) { settings.mode = m; save(); render(); rescheduleNext(); }
+function compareCard(a) {
+  const box = document.createElement('div'); box.className = 'compare';
+  box.innerHTML = `<b>怎么对比「无缝」开 / 关</b>
+    <p>这 3 段是同一段连续音乐，在拍子中间切开。按下面任一按钮，会从第 1 段结尾前 5 秒开始播，约 5 秒后听切点。</p>
+    <p>· <b>无缝</b>：节拍和长音一直连着，听不出换曲。<br>· <b>普通（有间隙）</b>：切点处会“咯噔”一下，节拍断约 0.3 秒。</p>
+    <div class="cmp-btns"><button data-m="gapless">▶ 无缝模式听切点</button><button data-m="normal">▶ 普通模式听切点</button></div>`;
+  box.querySelectorAll('button').forEach(b => b.onclick = () => {
+    setMode(b.dataset.m);
+    playNow(a.tracks, 0);
+    const startAt = Math.max(0, (a.tracks[0].duration || 12) - 5);
+    // 等第一段加载完后跳到结尾前 5 秒
+    const my = gen; const wait = () => { if (my !== gen) return; if (curVoice) seek(startAt); else setTimeout(wait, 50); };
+    setTimeout(wait, 50);
+  });
+  return box;
+}
+
 function render() {
   const t = queue[qi];
   const title = t ? t.title : '未在播放';
@@ -510,6 +627,7 @@ function render() {
   } else if (view.type === 'album') {
     const a = view.album;
     $('#view-title').textContent = a.name; $('#btn-back').hidden = false;
+    if (a.name === COMPARE_ALBUM) list.appendChild(compareCard(a));
     const all = document.createElement('button'); all.className = 'playall'; all.textContent = '▶ 播放整张专辑';
     all.onclick = () => { playNow(a.tracks, 0); }; list.appendChild(all);
     a.tracks.forEach((tr, i) => list.appendChild(trackRow(tr, { indexLabel: tr.track || i + 1, listForPlay: a.tracks, playIndexInList: i })));
@@ -556,6 +674,8 @@ function render() {
 
   $('#mode-gapless').classList.toggle('on', settings.mode === 'gapless');
   $('#mode-xf').classList.toggle('on', settings.mode === 'crossfade');
+  $('#mode-normal').classList.toggle('on', settings.mode === 'normal');
+  $('#mode-tip').textContent = MODE_TIPS[settings.mode] || '';
   $('#xf').disabled = settings.mode !== 'crossfade';
   $('#xf').value = settings.crossfade; $('#xf-val').textContent = settings.crossfade + ' 秒';
   $$('#tabs button').forEach(b => b.classList.toggle('on', !results && (
@@ -599,7 +719,7 @@ async function init() {
     if (!amap.has(t.artist)) amap.set(t.artist, { name: t.artist, tracks: [] });
     amap.get(t.artist).tracks.push(t);
   }
-  albums = [...map.values()];
+  albums = [...map.values()].sort((x, y) => (y.name === COMPARE_ALBUM) - (x.name === COMPARE_ALBUM));
   artists = [...amap.values()].sort((a, b) => a.name.localeCompare(b.name, 'zh'));
 
   $('#btn-play').onclick = togglePlay;
@@ -637,8 +757,11 @@ async function init() {
   const sk = $('#seek');
   sk.oninput = () => { dragging = true; $('#t-cur').textContent = fmt(+sk.value); };
   sk.onchange = () => { dragging = false; seek(+sk.value); };
-  $('#mode-gapless').onclick = () => { settings.mode = 'gapless'; save(); render(); rescheduleNext(); };
-  $('#mode-xf').onclick = () => { settings.mode = 'crossfade'; save(); render(); rescheduleNext(); };
+  $('#mode-gapless').onclick = () => setMode('gapless');
+  $('#mode-xf').onclick = () => setMode('crossfade');
+  $('#mode-normal').onclick = () => setMode('normal');
+  $('#ka').checked = settings.keepAlive;
+  $('#ka').onchange = e => { settings.keepAlive = e.target.checked; save(); if (settings.keepAlive && wantPlay) keepAliveStart(); else keepAliveStop(); };
   $('#xf').oninput = e => { settings.crossfade = +e.target.value; $('#xf-val').textContent = settings.crossfade + ' 秒'; };
   $('#xf').onchange = () => { save(); rescheduleNext(); };
   $('#me').checked = settings.mediaEl;
@@ -673,7 +796,9 @@ init().catch(e => setStatus('初始化失败：' + e.message));
 window.__player = {
   playIndex, next, prev, seek, togglePlay, setQueue, playNow, playNext, enqueue,
   toggleShuffle, cycleRepeat, setVolume, toggleMute, toggleFav, setSleep, openSheet,
-  get state() { return { qi, playing, curVoice, nextVoice, queue, settings: { ...settings }, favorites: [...favorites], recent: recent.slice(), sheetOpen }; },
+  get state() { return { qi, playing, wantPlay, curVoice, nextVoice, queue, settings: { ...settings }, favorites: [...favorites], recent: recent.slice(), sheetOpen }; },
+  get bg() { return { keepPlaying: !!(bg.keepEl && !bg.keepEl.paused), wakeLock: !!bg.wakeLock, autoResumes: bg.autoResumes, ctxState: ctx && ctx.state, events: bg.events.slice() }; },
+  setMode, tryResume,
   get library() { return library; },
   settings, rescheduleNext,
 };

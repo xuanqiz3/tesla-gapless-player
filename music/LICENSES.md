@@ -13,16 +13,20 @@
 
 `gapless-test/molihua-part1.mp3` / `molihua-part2.mp3`：将「茉莉花（合成试听）」对半切开，用于短文件无缝试听；同样 CC0。
 
-## Wallpaper 无缝测试对（Kevin MacLeod）
+## 无缝对比测试（`music/compare/`）
 
-| 文件 | 曲名 | 艺人 | 授权 | 来源 |
-|---|---|---|---|---|
-| gapless-test/wallpaper-part1.mp3 | Wallpaper (Part 1) | Kevin MacLeod | CC BY 4.0 | https://incompetech.com/music/royalty-free/mp3-royaltyfree/Wallpaper.mp3 |
-| gapless-test/wallpaper-part2.mp3 | Wallpaper (Part 2) | Kevin MacLeod | CC BY 4.0 | 同上（在第 4,410,000 个采样处切开） |
+| 文件 | 曲名 | 说明 | 授权 |
+|---|---|---|---|
+| compare-part1.mp3 | 无缝对比 第1段 | `scripts/make_compare.py` 合成的 36 秒连续音乐（节拍 + 和弦 + 琶音），在第 529,917 采样处切开 | CC0（本仓库生成） |
+| compare-part2.mp3 | 无缝对比 第2段 | 同上，第 529,917 – 1,046,123 采样 | CC0（本仓库生成） |
+| compare-part3.mp3 | 无缝对比 第3段 | 同上，剩余部分 | CC0（本仓库生成） |
 
+`tests/fixtures/compare-full.flac` 为未切开的原始音频，仅供自动测试比对。
+
+## 测试夹具（不进曲库）
+
+Wallpaper（Kevin MacLeod，CC BY 4.0，https://incompetech.com/music/royalty-free/mp3-royaltyfree/Wallpaper.mp3）因体积较大、车机上无法播放，已从线上曲库移除；`tests/fixtures/wallpaper-part*.mp3 / .flac / -noxing.mp3` 仅用于自动测试。
 署名："Wallpaper" Kevin MacLeod (incompetech.com), Licensed under Creative Commons: By Attribution 4.0 License https://creativecommons.org/licenses/by/4.0/
-
-`tests/fixtures/wallpaper-part*.flac` 与 `*-noxing.mp3` 仅用于自动测试，不随曲库列表展示。
 
 ## 说明
 

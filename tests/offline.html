@@ -77,7 +77,11 @@ const flac = await realPair(flac1, flac2);
   const sil = longestSilenceMs(out, boundary - SR / 2, boundary + SR / 2);
   ok('FLAC 分割对 无缝（与原始连续音频逐样本对比）', md < 1e-5 && sil < 5, { maxDiff: md, longestSilenceMsNearBoundary: sil, boundarySample: boundary, trim: eng.log.map(l => l.trim) });
 }
-const mp1 = T('gapless-test/wallpaper-part1.mp3'), mp2 = T('gapless-test/wallpaper-part2.mp3');
+// Wallpaper MP3 已从线上曲库移除（车机播不了），仅作为测试夹具保留在 tests/fixtures
+const mp1 = { title: 'Wallpaper (Part 1)', album: 'Wallpaper — Gapless Split', url: 'fixtures/wallpaper-part1.mp3', sampleRate: 44100,
+  gapless: { encoderDelay: 1105, padding: 1055, validSamples: 4410000, source: 'LAME' } };
+const mp2 = { title: 'Wallpaper (Part 2)', album: 'Wallpaper — Gapless Split', url: 'fixtures/wallpaper-part2.mp3', sampleRate: 44100,
+  gapless: { encoderDelay: 1105, padding: 191, validSamples: 5294448, source: 'LAME' } };
 const nx = (t, i) => ({ ...t, url: `fixtures/wallpaper-part${i}-noxing.mp3` });
 const cases = [
   ['MP3（有 LAME 头）', mp1, mp2, 0, true],
@@ -117,6 +121,34 @@ for (const [label, a, b, gap, expectGapless] of cases) {
   // 同专辑应强制无缝
   const e2 = new GaplessEngine(new OfflineAudioContext(2, SR, SR)); e2.gaplessOnly = false; e2.crossfade = 6;
   ok('同专辑连续曲目强制无缝（不淡入淡出）', e2.transitionFor({ album: 'X' }, { album: 'X' }) === 0 && e2.transitionFor({ album: 'X' }, { album: 'Y' }) === 6, {});
+}
+
+// ---- 5. 「无缝对比测试」3 段 MP3（线上曲库）：无缝拼接应与原始连续音频对齐；普通模式间隙应被检测到 ----
+{
+  const parts = lib.filter(t => t.album === '无缝对比测试').sort((a, b) => a.track - b.track);
+  const refCtx = new OfflineAudioContext(2, SR, SR);
+  const ref = (await refCtx.decodeAudioData(await (await fetch('fixtures/compare-full.flac')).arrayBuffer())).getChannelData(0);
+  async function chain(gap) {
+    const len = ref.length + SR;
+    let cuts = [];
+    const { out } = await render(len, async (ctx, e) => {
+      const bufs = await Promise.all(parts.map(t => e.load('../music/' + t.file)));
+      let v = e.schedule(parts[0], bufs[0], 0);
+      for (let i = 1; i < parts.length; i++) { cuts.push(Math.round(v.end * SR)); if (gap) v.end += gap; v = e.scheduleAfter(v, parts[i], bufs[i]); }
+    });
+    return { out, cuts };
+  }
+  const g = await chain(0), n = await chain(0.3);
+  const info = { parts: parts.map(t => t.title), cutsSec: g.cuts.map(c => +(c / SR).toFixed(4)), boundaries: [] };
+  let pass = parts.length === 3 && parts.every(t => t.gapless && t.duration >= 8 && t.duration <= 15);
+  for (const c of g.cuts) {
+    const sil = longestSilenceMs(g.out, c - SR / 4, c + SR / 4, 1e-3);
+    const lb = bestLag(ref, g.out, c - 12000, 8000, 1500), la = bestLag(ref, g.out, c + 3000, 8000, 1500);
+    const nsil = longestSilenceMs(n.out, c - SR / 4, c + SR, 1e-3);
+    info.boundaries.push({ gaplessSilenceMs: +sil.toFixed(3), lagBefore: lb, lagAfter: la, normalModeSilenceMs: +nsil.toFixed(1) });
+    pass = pass && sil < 5 && lb === 0 && la === 0 && nsil > 250;
+  }
+  ok('无缝对比测试：3 段 MP3 无缝拼接与原曲对齐；普通模式 0.3 秒间隙可测出', pass, info);
 }
 
 window.__results = results;

@@ -52,7 +52,7 @@ try:
         pg.wait_for_function('!document.getElementById("now").classList.contains("open")')
         pg.click('#btn-back')
         pg.wait_for_selector('.album')
-        pg.locator('.album', has_text='Wallpaper — Gapless Split').click()
+        pg.locator('.album', has_text='无缝对比测试').click()
         pg.wait_for_selector('.track-main')
         pg.click('.track-main >> nth=0')   # 第 1 首
         pg.wait_for_function('window.__player.state.curVoice')
@@ -70,11 +70,66 @@ try:
         pg.wait_for_function('window.__player.state.qi === 1', timeout=15000)
         t0 = pg.evaluate('__ctx.currentTime'); time.sleep(1.0); t1 = pg.evaluate('__ctx.currentTime')
         title = pg.text_content('#np-title')
-        ok = title == 'Wallpaper (Part 2)' and t1 > t0
+        ok = title == '无缝对比 第2段' and t1 > t0
         failed += not ok
         print(('PASS ' if ok else 'FAIL ') + '实时：自动切到第 2 首，界面/Media Session 更新', json.dumps({'title': title, 'clockAdvanced': round(t1 - t0, 3), 'log': pg.evaluate('__engine.log')}, ensure_ascii=False))
         ms = pg.evaluate('navigator.mediaSession.metadata && navigator.mediaSession.metadata.title')
         print('INFO Media Session metadata.title =', ms)
+        pg.screenshot(path=os.path.join(ROOT, 'tests', 'screenshot-compare.png'))
+
+        # ---- 普通（有间隙）模式：上一首结束后才加载，有 ≥0.3 秒间隙 ----
+        pg.click('.cmp-btns button[data-m=normal]')
+        pg.wait_for_function('window.__player.state.settings.mode === "normal" && window.__player.state.qi === 0 && window.__player.state.curVoice && window.__player.state.curVoice.seek > 1', timeout=30000)
+        pre = pg.evaluate('({ next: !!window.__player.state.nextVoice, pos: __engine.position() })')
+        time.sleep(1.5)
+        pre2 = pg.evaluate('!!window.__player.state.nextVoice')
+        pg.wait_for_function('window.__player.state.qi === 1 && window.__player.state.curVoice', timeout=20000)
+        lg = pg.evaluate('__engine.log')
+        p1 = [l for l in lg if l['title'] == '无缝对比 第1段'][-1]
+        p2 = [l for l in lg if l['title'] == '无缝对比 第2段'][-1]
+        gap = p2['when'] - p1['end']
+        ok = not pre['next'] and not pre2 and gap >= 0.3
+        failed += not ok
+        print(('PASS ' if ok else 'FAIL ') + '普通模式：不预排队，上一首结束后才播下一首（可听出间隙）', json.dumps({'preScheduled': pre['next'] or pre2, 'gapSeconds': round(gap, 3)}))
+        pg.evaluate('window.__player.setMode("gapless")')
+        ok = pg.evaluate('window.__engine.gaplessOnly === true && window.__player.state.settings.mode === "gapless"')
+        failed += not ok
+        print(('PASS ' if ok else 'FAIL ') + '切回无缝模式')
+
+        # ---- 后台保活 / 自动恢复 ----
+        bgr = {}
+        bgr['keepAliveWhilePlaying'] = pg.evaluate('window.__player.bg.keepPlaying')
+        bgr['mediaSessionPlaying'] = pg.evaluate('navigator.mediaSession.playbackState') == 'playing'
+        # 模拟切到后台（无头浏览器无法真正切走，用 visibilityState 覆盖 + 派发事件）
+        pg.evaluate('''() => { Object.defineProperty(document, 'visibilityState', { get: () => 'hidden', configurable: true });
+                       Object.defineProperty(document, 'hidden', { get: () => true, configurable: true });
+                       document.dispatchEvent(new Event('visibilitychange')); }''')
+        t0 = pg.evaluate('__ctx.currentTime'); time.sleep(1.0); t1 = pg.evaluate('__ctx.currentTime')
+        bgr['playsAfterHidden'] = t1 - t0 > 0.5 and pg.evaluate('__ctx.state') == 'running'
+        # 模拟系统挂起 AudioContext（不是用户暂停）→ 应自动恢复
+        pg.evaluate('__ctx.suspend()')
+        pg.wait_for_function('__ctx.state === "running" && window.__player.bg.autoResumes > 0', timeout=10000)
+        bgr['autoResumeAfterSystemSuspend'] = True
+        pg.evaluate('''() => { delete document.visibilityState; delete document.hidden; document.dispatchEvent(new Event('visibilitychange')); }''')
+        # 模拟 pagehide 时被挂起 → 也会恢复
+        pg.evaluate('__ctx.suspend().then(() => window.dispatchEvent(new Event("pagehide")))')
+        pg.wait_for_function('__ctx.state === "running"', timeout=10000)
+        bgr['resumeOnPagehide'] = True
+        # 用户主动暂停：不能被自动恢复，保活音轨应停止
+        pg.evaluate('window.__player.togglePlay()')
+        time.sleep(1.5)
+        bgr['userPauseStays'] = pg.evaluate('__ctx.state') == 'suspended' and not pg.evaluate('window.__player.state.playing')
+        bgr['keepAliveStopsOnPause'] = not pg.evaluate('window.__player.bg.keepPlaying')
+        bgr['mediaSessionPaused'] = pg.evaluate('navigator.mediaSession.playbackState') == 'paused'
+        pg.evaluate('window.__player.togglePlay()')
+        time.sleep(0.5)
+        bgr['resumeByUser'] = pg.evaluate('__ctx.state') == 'running' and pg.evaluate('window.__player.bg.keepPlaying')
+        ok = all(bgr.values())
+        failed += not ok
+        print(('PASS ' if ok else 'FAIL ') + '后台：保活音轨/切后台继续播/系统挂起自动恢复/用户暂停不恢复', json.dumps({**bgr, 'events': pg.evaluate('window.__player.bg.events')}, ensure_ascii=False))
+        pg.click('#mini-expand'); pg.wait_for_selector('#now.open'); pg.wait_for_timeout(400)
+        pg.screenshot(path=os.path.join(ROOT, 'tests', 'screenshot-modes.png'))
+        pg.click('#btn-collapse')
 
         # ---- 循环 / 随机 / 音量 / 收藏 ----
         logic = pg.evaluate('''() => {
