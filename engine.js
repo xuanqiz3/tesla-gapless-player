@@ -17,6 +17,10 @@ export class GaplessEngine extends EventTarget {
     this.log = [];             // 调度日志（测试用）
   }
 
+  setVolume(v) {
+    this.master.gain.setValueAtTime(Math.max(0, Math.min(1, v)), this.ctx.currentTime);
+  }
+
   // ---------- 加载与裁剪 ----------
   load(url) {
     if (!this.cache.has(url)) {

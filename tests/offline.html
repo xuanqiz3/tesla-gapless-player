@@ -1,0 +1,121 @@
+<!doctype html><meta charset="utf-8"><title>离线渲染测试</title>
+<pre id="out">running…</pre>
+<script type="module">
+import { GaplessEngine } from '../engine.js';
+const SR = 44100;
+const results = [];
+const ok = (name, pass, info) => results.push({ name, pass, ...info });
+
+// 边界附近最长“静音”段（|x|<thr 连续样本数），以毫秒计
+function longestSilenceMs(ch, from, to, thr = 1e-4) {
+  let best = 0, run = 0;
+  for (let i = Math.max(0, from); i < Math.min(ch.length, to); i++) {
+    if (Math.abs(ch[i]) < thr) { run++; if (run > best) best = run; } else run = 0;
+  }
+  return best / SR * 1000;
+}
+function maxDiff(a, b, from, to) { let m = 0; for (let i = from; i < to; i++) m = Math.max(m, Math.abs(a[i] - b[i])); return m; }
+// 在 ±maxLag 内找使 a 与 b 最相关的位移（样本）
+function bestLag(a, b, from, len, maxLag) {
+  let best = 0, bestV = -Infinity;
+  for (let lag = -maxLag; lag <= maxLag; lag++) {
+    let s = 0; for (let i = from; i < from + len; i++) s += a[i] * (b[i + lag] || 0);
+    if (s > bestV) { bestV = s; best = lag; }
+  }
+  return best;
+}
+
+async function render(len, setup) {
+  const ctx = new OfflineAudioContext(2, len, SR);
+  const eng = new GaplessEngine(ctx);
+  await setup(ctx, eng);
+  const buf = await ctx.startRendering();
+  return { out: buf.getChannelData(0), eng };
+}
+
+// ---- 1. 合成正弦波：切成两段（切点非帧对齐），无缝衔接后应与原始正弦完全一致 ----
+{
+  const f = 440, total = SR * 2, cut = 44123;
+  const mk = (n, off) => { const b = new AudioBuffer({ length: n, sampleRate: SR, numberOfChannels: 2 });
+    for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < n; i++) d[i] = 0.5 * Math.sin(2 * Math.PI * f * (i + off) / SR); } return b; };
+  const A = mk(cut, 0), B = mk(total - cut, cut);
+  const { out, eng } = await render(total, async (ctx, e) => {
+    const v = e.schedule({ title: 'A', album: 'X' }, A, 0);
+    e.scheduleAfter(v, { title: 'B', album: 'X' }, B);
+  });
+  let m = 0; for (let i = 0; i < total; i++) m = Math.max(m, Math.abs(out[i] - 0.5 * Math.sin(2 * Math.PI * f * i / SR)));
+  ok('合成正弦 无缝拼接（采样级）', m < 1e-5, { maxErr: m, nextWhen: eng.log[1].when, prevEnd: eng.log[0].end, expectedWhen: cut / SR });
+}
+
+// ---- 2/3. 真实曲目：FLAC 与 MP3 分割对 ----
+const lib = (await (await fetch('../music/library.json')).json()).tracks;
+const T = f => ({ ...lib.find(t => t.file === f) });
+async function realPair(t1, t2, extraGap = 0) {
+  const pre = 2, post = 2, len = (pre + post) * SR;
+  let boundary;
+  const { out, eng } = await render(len, async (ctx, e) => {
+    const [b1, b2] = await Promise.all([e.load(t1.url || '../music/' + t1.file), e.load(t2.url || '../music/' + t2.file)]);
+    const tr = GaplessEngine.trimInfo(b1, t1.gapless && { ...t1.gapless, sampleRate: t1.sampleRate });
+    const v = e.schedule(t1, b1, 0, tr.duration - pre);    // 从第 1 段结尾前 2 秒开始
+    if (extraGap) { v.end += extraGap; }                    // 对照组：人为插入间隙
+    e.scheduleAfter(v, t2, b2);
+    boundary = Math.round((e.log[1].when - extraGap) * SR);
+  });
+  return { out, eng, boundary };
+}
+const flac = await realPair(T('gapless-test/wallpaper-part1.flac'), T('gapless-test/wallpaper-part2.flac'));
+{
+  const { out, eng, boundary } = flac;
+  const ctx = new OfflineAudioContext(2, SR, SR);
+  const [a, b] = await Promise.all(['wallpaper-part1.flac', 'wallpaper-part2.flac'].map(f => fetch('../music/gapless-test/' + f).then(r => r.arrayBuffer()).then(x => ctx.decodeAudioData(x))));
+  const ref = new Float32Array(out.length); const A = a.getChannelData(0), B = b.getChannelData(0);
+  for (let i = 0; i < out.length; i++) { const j = A.length - boundary + i; ref[i] = j < A.length ? A[j] : B[j - A.length]; }
+  const md = maxDiff(out, ref, 0, out.length);
+  const sil = longestSilenceMs(out, boundary - SR / 2, boundary + SR / 2);
+  ok('FLAC 分割对 无缝（与原始连续音频逐样本对比）', md < 1e-5 && sil < 5, { maxDiff: md, longestSilenceMsNearBoundary: sil, boundarySample: boundary, trim: eng.log.map(l => l.trim) });
+}
+const mp1 = T('gapless-test/wallpaper-part1.mp3'), mp2 = T('gapless-test/wallpaper-part2.mp3');
+const nx = (t, i) => ({ ...t, url: `fixtures/wallpaper-part${i}-noxing.mp3` });
+const cases = [
+  ['MP3（有 LAME 头）', mp1, mp2, 0, true],
+  ['MP3（无 LAME 头，但给引擎提供 delay/padding 元数据 → 引擎自行裁剪）', nx(mp1, 1), nx(mp2, 2), 0, true],
+  ['对照组：MP3 无 LAME 头且无元数据（预期出现间隙/错位）', { ...nx(mp1, 1), gapless: null }, { ...nx(mp2, 2), gapless: null }, 0, false],
+  ['对照组：FLAC 人为插入 10 ms 间隙（预期被检测到）', T('gapless-test/wallpaper-part1.flac'), T('gapless-test/wallpaper-part2.flac'), 0.010, false],
+];
+const flacSil = longestSilenceMs(flac.out, flac.boundary - SR / 2, flac.boundary + SR / 2, 1e-3);
+for (const [label, a, b, gap, expectGapless] of cases) {
+  const { out, eng, boundary } = await realPair(a, b, gap);
+  const sil = longestSilenceMs(out, boundary - SR / 2, boundary + SR / 2, 1e-3);
+  // 与 FLAC 渲染对齐：边界前后窗口的最佳位移应一致（且≈0），否则说明边界处多出/丢失了样本
+  const lagBefore = bestLag(flac.out, out, flac.boundary - 15000, 8000, 2500);
+  const lagAfter = bestLag(flac.out, out, flac.boundary + 5000, 8000, 2500);
+  const gapless = sil < 5 && lagBefore === lagAfter && Math.abs(lagAfter) <= 1;
+  ok(label, gapless === expectGapless, { expect: expectGapless ? '无缝' : '检测到间隙', measuredGapless: gapless,
+    longestSilenceMsNearBoundary: +sil.toFixed(3), flacReferenceSilenceMs: +flacSil.toFixed(3), lagBefore, lagAfter, trim: eng.log.map(l => l.trim) });
+}
+
+// ---- 4. 交叉淡入：不同专辑，3 秒等功率 ----
+{
+  const n = SR * 8, xf = 3;
+  const noise = (seed) => { const b = new AudioBuffer({ length: n, sampleRate: SR, numberOfChannels: 2 }); let s = seed;
+    for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < n; i++) { s = (s * 1103515245 + 12345) >>> 0; d[i] = (s / 2 ** 32 - 0.5) * 0.5; } } return b; };
+  const A = noise(1), B = noise(99);
+  const { out, eng } = await render(SR * 12, async (ctx, e) => {
+    e.gaplessOnly = false; e.crossfade = xf;
+    const v = e.schedule({ title: 'A', album: 'X' }, A, 0);
+    e.scheduleAfter(v, { title: 'B', album: 'Y' }, B);
+  });
+  // 每 0.25 秒窗口 RMS，交叉区间内应基本恒定（等功率，误差 < 1.5 dB）
+  const rms = []; const w = SR / 4;
+  for (let s = 0; s + w <= SR * 11; s += w) { let e2 = 0; for (let i = s; i < s + w; i++) e2 += out[i] ** 2; rms.push(Math.sqrt(e2 / w)); }
+  const db = rms.map(r => 20 * Math.log10(r / rms[0]));
+  const spread = Math.max(...db) - Math.min(...db);
+  ok('交叉淡入 3 秒（等功率，RMS 波动 < 1.5 dB）', spread < 1.5 && Math.abs(eng.log[1].when - 5) < 1e-6, { nextWhen: eng.log[1].when, expected: 5, rmsSpreadDb: +spread.toFixed(2) });
+  // 同专辑应强制无缝
+  const e2 = new GaplessEngine(new OfflineAudioContext(2, SR, SR)); e2.gaplessOnly = false; e2.crossfade = 6;
+  ok('同专辑连续曲目强制无缝（不淡入淡出）', e2.transitionFor({ album: 'X' }, { album: 'X' }) === 0 && e2.transitionFor({ album: 'X' }, { album: 'Y' }) === 6, {});
+}
+
+window.__results = results;
+document.getElementById('out').textContent = JSON.stringify(results, null, 2);
+</script>
