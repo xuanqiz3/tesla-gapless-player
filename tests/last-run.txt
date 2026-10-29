@@ -1,0 +1,15 @@
+Chromium 156.0.8078.4
+PASS 合成正弦 无缝拼接（采样级） {"maxErr": 1.4886018195880979e-08, "nextWhen": 1.0005215419501134, "prevEnd": 1.0005215419501134, "expectedWhen": 1.0005215419501134}
+PASS FLAC 分割对 无缝（与原始连续音频逐样本对比） {"maxDiff": 0, "longestSilenceMsNearBoundary": 0.022675736961451247, "boundarySample": 88200, "trim": ["none", "none"]}
+PASS MP3（有 LAME 头） {"expect": "无缝", "measuredGapless": true, "longestSilenceMsNearBoundary": 0.091, "flacReferenceSilenceMs": 0.068, "lagBefore": 0, "lagAfter": 0, "trim": ["decoder", "decoder"]}
+PASS MP3（无 LAME 头，但给引擎提供 delay/padding 元数据 → 引擎自行裁剪） {"expect": "无缝", "measuredGapless": true, "longestSilenceMsNearBoundary": 0.091, "flacReferenceSilenceMs": 0.068, "lagBefore": 0, "lagAfter": 0, "trim": ["engine", "engine"]}
+PASS 对照组：MP3 无 LAME 头且无元数据（预期出现间隙/错位） {"expect": "检测到间隙", "measuredGapless": false, "longestSilenceMsNearBoundary": 28.753, "flacReferenceSilenceMs": 0.068, "lagBefore": -1055, "lagAfter": 1105, "trim": ["none", "none"]}
+PASS 对照组：FLAC 人为插入 10 ms 间隙（预期被检测到） {"expect": "检测到间隙", "measuredGapless": false, "longestSilenceMsNearBoundary": 10, "flacReferenceSilenceMs": 0.068, "lagBefore": 0, "lagAfter": 441, "trim": ["none", "none"]}
+PASS 交叉淡入 3 秒（等功率，RMS 波动 < 1.5 dB） {"nextWhen": 5, "expected": 5, "rmsSpreadDb": 0.28}
+PASS 同专辑连续曲目强制无缝（不淡入淡出） {}
+PASS 实时：下一首在音频时钟上提前调度，起点 == 上一首终点 {"now": 1.486077097505669, "curEnd": 5.3270975056689345, "nextWhen": 5.3270975056689345, "sr": 44100, "state": "running", "baseLatency": 0.023219954648526078, "outputLatency": 0.07200000000000001, "leadSeconds": 3.841}
+PASS 实时：自动切到第 2 首，界面/Media Session 更新 {"title": "Wallpaper (Part 2)", "clockAdvanced": 0.998, "log": [{"title": "连通性测试（请先点这首）", "scheduledAt": 0.046439909297052155, "when": 0.09643990929705215, "end": 2.096439909297052, "offset": 0, "trim": "decoder", "fadeIn": 0}, {"title": "茉莉花（合成试听）", "scheduledAt": 0.06965986394557823, "when": 2.096439909297052, "end": 19.94643990929705, "offset": 0, "trim": "decoder", "fadeIn": 0}, {"title": "Wallpaper (Part 1)", "scheduledAt": 1.253877551020408, "when": 1.3038775510204081, "end": 101.3038775510204, "offset": 0, "trim": "decoder", "fadeIn": 0}, {"title": "Wallpaper (Part 1)", "scheduledAt": 1.2770975056689342, "when": 1.3270975056689343, "end": 5.3270975056689345, "offset": 96, "trim": "decoder", "fadeIn": 0}, {"title": "Wallpaper (Part 2)", "scheduledAt": 1.486077097505669, "when": 5.3270975056689345, "end": 125.38260770975057, "offset": 0, "trim": "decoder", "fadeIn": 0}]}
+INFO Media Session metadata.title = Wallpaper (Part 2)
+PASS 循环/随机/音量/收藏/控件 {"shuffleKeeps": true, "shuffleOff": true, "repOne": true, "cycled": true, "toAll": true, "volOk": true, "favOk": true, "ui": true, "miniLayout": true}
+
+全部通过

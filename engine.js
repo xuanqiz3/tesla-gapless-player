@@ -25,9 +25,14 @@ export class GaplessEngine extends EventTarget {
   load(url) {
     if (!this.cache.has(url)) {
       const p = fetch(url).then(r => {
-        if (!r.ok) throw new Error(`加载失败 ${r.status}: ${url}`);
+        if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText || ''}`.trim() + `: ${url}`);
         return r.arrayBuffer();
-      }).then(ab => this.ctx.decodeAudioData(ab));
+      }).then(ab => {
+        if (!ab || !ab.byteLength) throw new Error(`空文件: ${url}`);
+        return this.ctx.decodeAudioData(ab.slice(0)).catch(err => {
+          throw new Error(`解码失败（车机可能不支持该格式，请用 MP3）: ${err && err.message || err}`);
+        });
+      });
       p.catch(() => this.cache.delete(url));
       this.cache.set(url, p);
     }

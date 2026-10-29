@@ -2,81 +2,9 @@
   "version": 1,
   "tracks": [
     {
-      "title": "Carefree",
-      "artist": "Kevin MacLeod",
-      "album": "Royalty Free",
-      "track": null,
-      "disc": null,
-      "file": "carefree.mp3",
-      "cover": null,
-      "duration": 205.14,
-      "sampleRate": 44100,
-      "gapless": null
-    },
-    {
-      "title": "Fluffing a Duck",
-      "artist": "Kevin MacLeod",
-      "album": "Royalty Free",
-      "track": null,
-      "disc": null,
-      "file": "fluffing-a-duck.mp3",
-      "cover": null,
-      "duration": 67.368,
-      "sampleRate": 48000,
-      "gapless": null
-    },
-    {
-      "title": "Local Elevator - Elevator",
-      "artist": "Kevin MacLeod",
-      "album": "Royalty Free",
-      "track": null,
-      "disc": null,
-      "file": "local-forecast-elevator.mp3",
-      "cover": null,
-      "duration": 189.205,
-      "sampleRate": 44100,
-      "gapless": null
-    },
-    {
-      "title": "Sneaky Snitch",
-      "artist": "Kevin MacLeod",
-      "album": "Royalty Free",
-      "track": null,
-      "disc": null,
-      "file": "sneaky-snitch.mp3",
-      "cover": null,
-      "duration": 136.62,
-      "sampleRate": 44100,
-      "gapless": null
-    },
-    {
       "title": "Wallpaper (Part 1)",
       "artist": "Kevin MacLeod",
       "album": "Wallpaper — Gapless Split",
-      "track": 1,
-      "disc": null,
-      "file": "gapless-test/wallpaper-part1.flac",
-      "cover": null,
-      "duration": 100.0,
-      "sampleRate": 44100,
-      "gapless": null
-    },
-    {
-      "title": "Wallpaper (Part 2)",
-      "artist": "Kevin MacLeod",
-      "album": "Wallpaper — Gapless Split",
-      "track": 2,
-      "disc": null,
-      "file": "gapless-test/wallpaper-part2.flac",
-      "cover": null,
-      "duration": 120.056,
-      "sampleRate": 44100,
-      "gapless": null
-    },
-    {
-      "title": "Wallpaper (Part 1)",
-      "artist": "Kevin MacLeod",
-      "album": "Wallpaper — Gapless Split (MP3)",
       "track": 1,
       "disc": null,
       "file": "gapless-test/wallpaper-part1.mp3",
@@ -93,7 +21,7 @@
     {
       "title": "Wallpaper (Part 2)",
       "artist": "Kevin MacLeod",
-      "album": "Wallpaper — Gapless Split (MP3)",
+      "album": "Wallpaper — Gapless Split",
       "track": 2,
       "disc": null,
       "file": "gapless-test/wallpaper-part2.mp3",
@@ -104,6 +32,108 @@
         "encoderDelay": 1105,
         "padding": 191,
         "validSamples": 5294448,
+        "source": "LAME"
+      }
+    },
+    {
+      "title": "连通性测试（请先点这首）",
+      "artist": "系统测试音",
+      "album": "国内连通性试听",
+      "track": null,
+      "disc": null,
+      "file": "cn-demo/connectivity-test.mp3",
+      "cover": null,
+      "duration": 2.038,
+      "sampleRate": 44100,
+      "gapless": {
+        "encoderDelay": 1105,
+        "padding": 551,
+        "validSamples": 88200,
+        "source": "LAME"
+      }
+    },
+    {
+      "title": "茉莉花（合成试听）",
+      "artist": "公有领域旋律 / 合成",
+      "album": "国内连通性试听",
+      "track": null,
+      "disc": null,
+      "file": "cn-demo/molihua-synth.mp3",
+      "cover": null,
+      "duration": 17.894,
+      "sampleRate": 44100,
+      "gapless": {
+        "encoderDelay": 1105,
+        "padding": 830,
+        "validSamples": 787185,
+        "source": "LAME"
+      }
+    },
+    {
+      "title": "五声音阶拨弦（合成试听）",
+      "artist": "合成试听",
+      "album": "国内连通性试听",
+      "track": null,
+      "disc": null,
+      "file": "cn-demo/pentatonic-pluck.mp3",
+      "cover": null,
+      "duration": 9.482,
+      "sampleRate": 44100,
+      "gapless": {
+        "encoderDelay": 1105,
+        "padding": 767,
+        "validSamples": 416304,
+        "source": "LAME"
+      }
+    },
+    {
+      "title": "样例立体声（Espressif）",
+      "artist": "Espressif 测试音",
+      "album": "国内连通性试听",
+      "track": null,
+      "disc": null,
+      "file": "cn-demo/stereo-sample.mp3",
+      "cover": null,
+      "duration": 18.051,
+      "sampleRate": 44100,
+      "gapless": {
+        "encoderDelay": 1105,
+        "padding": 1127,
+        "validSamples": 793800,
+        "source": "LAME"
+      }
+    },
+    {
+      "title": "茉莉花（Part 1）",
+      "artist": "公有领域旋律 / 合成",
+      "album": "茉莉花 — 无缝试听",
+      "track": 1,
+      "disc": null,
+      "file": "gapless-test/molihua-part1.mp3",
+      "cover": null,
+      "duration": 8.96,
+      "sampleRate": 44100,
+      "gapless": {
+        "encoderDelay": 1105,
+        "padding": 439,
+        "validSamples": 393592,
+        "source": "LAME"
+      }
+    },
+    {
+      "title": "茉莉花（Part 2）",
+      "artist": "公有领域旋律 / 合成",
+      "album": "茉莉花 — 无缝试听",
+      "track": 2,
+      "disc": null,
+      "file": "gapless-test/molihua-part2.mp3",
+      "cover": null,
+      "duration": 8.96,
+      "sampleRate": 44100,
+      "gapless": {
+        "encoderDelay": 1105,
+        "padding": 438,
+        "validSamples": 393593,
         "source": "LAME"
       }
     }

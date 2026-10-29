@@ -35,8 +35,24 @@ try:
         logs = []; pg.on('pageerror', lambda e: logs.append('ERR ' + str(e)))
         pg.goto(base + '/index.html')
         pg.wait_for_selector('.album')
+        pg.wait_for_selector('#mini')
         pg.screenshot(path=os.path.join(ROOT, 'tests', 'screenshot-albums.png'))
-        pg.click('text=Wallpaper — Gapless Split')
+        # 迷你栏布局截图
+        pg.screenshot(path=os.path.join(ROOT, 'tests', 'screenshot-mini.png'))
+        pg.locator('.album', has_text='国内连通性试听').click()
+        pg.wait_for_selector('.track-main')
+        pg.locator('.track-main', has_text='连通性测试').click()
+        pg.wait_for_function('window.__player.state.curVoice', timeout=30000)
+        pg.wait_for_timeout(500)
+        pg.screenshot(path=os.path.join(ROOT, 'tests', 'screenshot-connectivity.png'))
+        pg.click('#mini-expand')
+        pg.wait_for_selector('#now.open')
+        pg.screenshot(path=os.path.join(ROOT, 'tests', 'screenshot-expanded.png'))
+        pg.click('#btn-collapse')
+        pg.wait_for_function('!document.getElementById("now").classList.contains("open")')
+        pg.click('#btn-back')
+        pg.wait_for_selector('.album')
+        pg.locator('.album', has_text='Wallpaper — Gapless Split').click()
         pg.wait_for_selector('.track-main')
         pg.click('.track-main >> nth=0')   # 第 1 首
         pg.wait_for_function('window.__player.state.curVoice')
@@ -89,8 +105,12 @@ try:
           // UI controls exist
           const ui = !!(document.getElementById('btn-shuffle') && document.getElementById('btn-repeat')
             && document.getElementById('vol') && document.getElementById('q')
-            && document.getElementById('btn-queue-panel') && document.getElementById('btn-sleep'));
-          return { shuffleKeeps, shuffleOff, repOne, cycled, toAll, volOk, favOk, ui };
+            && document.getElementById('btn-queue-panel') && document.getElementById('btn-sleep')
+            && document.getElementById('mini') && document.getElementById('mini-expand')
+            && document.getElementById('btn-collapse'));
+          const miniLayout = getComputedStyle(document.getElementById('mini')).position === 'fixed'
+            && !document.getElementById('now').classList.contains('open');
+          return { shuffleKeeps, shuffleOff, repOne, cycled, toAll, volOk, favOk, ui, miniLayout };
         }''')
         ok = all(logic.values())
         failed += not ok

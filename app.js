@@ -6,9 +6,15 @@ const fmt = t => { t = Math.max(0, t || 0); return `${Math.floor(t / 60)}:${Stri
 const trackKey = t => t && t.file;
 
 const settings = Object.assign({
-  mode: 'gapless', crossfade: 6, mediaEl: true,
+  mode: 'gapless', crossfade: 6, mediaEl: false,
   repeat: 'off', shuffle: false, volume: 1, muted: false,
 }, JSON.parse(localStorage.getItem('tp-settings') || '{}'));
+// 车机优先：旧版默认 mediaEl=true 可能导致 MediaStream 无声，强制纠正一次
+if (!localStorage.getItem('tp-mediael-v2')) {
+  settings.mediaEl = false;
+  localStorage.setItem('tp-mediael-v2', '1');
+  localStorage.setItem('tp-settings', JSON.stringify(settings));
+}
 const save = () => localStorage.setItem('tp-settings', JSON.stringify(settings));
 
 function loadList(key) {
@@ -26,20 +32,34 @@ let curVoice = null, nextVoice = null, gen = 0, playing = false;
 let view = { type: 'albums' }; // albums | album | songs | artists | artist | favorites | recent | search
 let searchQ = '';
 let sleepTimer = null, sleepUntil = 0, sleepTick = null;
-let showQueue = false, showSleep = false;
+let showQueue = false, showSleep = false, sheetOpen = false;
 
 function ensureAudio() {
   if (ctx) return;
   ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' });
   let out = ctx.destination;
   if (settings.mediaEl) {
-    const dest = ctx.createMediaStreamDestination();
-    audioEl = $('#sink'); audioEl.srcObject = dest.stream; audioEl.play().catch(() => {});
-    out = dest;
+    try {
+      const dest = ctx.createMediaStreamDestination();
+      audioEl = $('#sink'); audioEl.srcObject = dest.stream;
+      audioEl.play().catch(err => setStatus('媒体元素播放失败，可关掉「经媒体元素输出」：' + (err && err.message || err)));
+      out = dest;
+    } catch (e) {
+      setStatus('MediaStream 不可用，已回退直连扬声器：' + (e.message || e));
+      settings.mediaEl = false; save();
+      out = ctx.destination; audioEl = null;
+    }
   }
   engine = new GaplessEngine(ctx, out);
   applySettings();
   window.__engine = engine; window.__ctx = ctx;
+}
+function openSheet(open = true) {
+  sheetOpen = !!open;
+  $('#now').classList.toggle('open', sheetOpen);
+  $('#sheet-bg').classList.toggle('open', sheetOpen);
+  $('#now').setAttribute('aria-hidden', sheetOpen ? 'false' : 'true');
+  $('#sheet-bg').setAttribute('aria-hidden', sheetOpen ? 'false' : 'true');
 }
 function applySettings() {
   if (!engine) return;
@@ -134,7 +154,15 @@ async function playIndex(i, seek = 0) {
   if (ctx.state !== 'running') await ctx.resume();
   if (audioEl) audioEl.play().catch(() => {});
   let buf;
-  try { buf = await engine.load(url(queue[i])); } catch (e) { setStatus('加载失败：' + e.message); return; }
+  const trackUrl = url(queue[i]);
+  try {
+    buf = await engine.load(trackUrl);
+  } catch (e) {
+    const msg = (e && e.message) ? e.message : String(e);
+    setStatus(`加载失败：${queue[i].title} — ${msg}（${trackUrl}）`);
+    console.error('load failed', trackUrl, e);
+    return;
+  }
   if (my !== gen) return;
   curVoice = engine.schedule(queue[i], buf, ctx.currentTime + 0.05, seek);
   hookEnd(curVoice, my);
@@ -439,11 +467,19 @@ function renderQueuePanel() {
 
 function render() {
   const t = queue[qi];
-  $('#np-title').textContent = t ? t.title : '未在播放';
-  $('#np-sub').textContent = t ? `${t.artist} · ${t.album}` : '选择一张专辑开始';
-  $('#np-cover').src = t && t.cover ? 'music/' + t.cover : 'icons/icon-512.png';
+  const title = t ? t.title : '未在播放';
+  const sub = t ? `${t.artist} · ${t.album}` : '选择一张专辑开始';
+  const cover = t && t.cover ? 'music/' + t.cover : 'icons/icon-512.png';
+  $('#np-title').textContent = title;
+  $('#np-sub').textContent = sub;
+  $('#np-cover').src = cover;
+  $('#mini-title').textContent = title;
+  $('#mini-sub').textContent = t ? sub : '点曲名或「展开」打开完整控制';
+  $('#mini-cover').src = cover;
   $('#btn-play').textContent = playing ? '⏸' : '▶';
   $('#btn-play').setAttribute('aria-label', playing ? '暂停' : '播放');
+  $('#mini-play').textContent = playing ? '⏸' : '▶';
+  $('#mini-play').setAttribute('aria-label', playing ? '暂停' : '播放');
   $('#btn-fav-np').textContent = isFav(t) ? '♥' : '♡';
   $('#btn-fav-np').classList.toggle('on', isFav(t));
   $('#btn-shuffle').classList.toggle('on', !!settings.shuffle);
@@ -541,9 +577,13 @@ function tickUI() {
     const p = engine.position(curVoice), d = curVoice.trackDur;
     $('#seek').max = d; $('#seek').value = p;
     $('#t-cur').textContent = fmt(p); $('#t-dur').textContent = fmt(d);
+    const pct = d > 0 ? Math.min(100, Math.max(0, p / d * 100)) : 0;
+    $('#mini-prog-bar').style.width = pct + '%';
     if ('mediaSession' in navigator && navigator.mediaSession.setPositionState && playing) {
       try { navigator.mediaSession.setPositionState({ duration: d, position: Math.min(p, d), playbackRate: 1 }); } catch (e) {}
     }
+  } else if (!curVoice) {
+    $('#mini-prog-bar').style.width = '0%';
   }
   requestAnimationFrame(tickUI);
 }
@@ -565,6 +605,13 @@ async function init() {
   $('#btn-play').onclick = togglePlay;
   $('#btn-next').onclick = next;
   $('#btn-prev').onclick = prev;
+  $('#mini-play').onclick = e => { e.stopPropagation(); togglePlay(); };
+  $('#mini-next').onclick = e => { e.stopPropagation(); next(); };
+  $('#mini-prev').onclick = e => { e.stopPropagation(); prev(); };
+  $('#mini-expand').onclick = e => { e.stopPropagation(); openSheet(true); };
+  $('#mini-meta').onclick = () => openSheet(true);
+  $('#btn-collapse').onclick = () => openSheet(false);
+  $('#sheet-bg').onclick = () => openSheet(false);
   $('#btn-shuffle').onclick = toggleShuffle;
   $('#btn-repeat').onclick = cycleRepeat;
   $('#btn-fav-np').onclick = () => toggleFav(queue[qi]);
@@ -625,8 +672,8 @@ init().catch(e => setStatus('初始化失败：' + e.message));
 
 window.__player = {
   playIndex, next, prev, seek, togglePlay, setQueue, playNow, playNext, enqueue,
-  toggleShuffle, cycleRepeat, setVolume, toggleMute, toggleFav, setSleep,
-  get state() { return { qi, playing, curVoice, nextVoice, queue, settings: { ...settings }, favorites: [...favorites], recent: recent.slice() }; },
+  toggleShuffle, cycleRepeat, setVolume, toggleMute, toggleFav, setSleep, openSheet,
+  get state() { return { qi, playing, curVoice, nextVoice, queue, settings: { ...settings }, favorites: [...favorites], recent: recent.slice(), sheetOpen }; },
   get library() { return library; },
   settings, rescheduleNext,
 };

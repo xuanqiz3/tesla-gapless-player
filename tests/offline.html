@@ -63,11 +63,14 @@ async function realPair(t1, t2, extraGap = 0) {
   });
   return { out, eng, boundary };
 }
-const flac = await realPair(T('gapless-test/wallpaper-part1.flac'), T('gapless-test/wallpaper-part2.flac'));
+// FLAC 仅放在 tests/fixtures（不进线上曲库，减小车机下载体积）
+const flac1 = { title: 'Wallpaper (Part 1)', album: 'Wallpaper — Gapless Split', file: 'fixtures/wallpaper-part1.flac', url: 'fixtures/wallpaper-part1.flac', sampleRate: 44100, gapless: null };
+const flac2 = { title: 'Wallpaper (Part 2)', album: 'Wallpaper — Gapless Split', file: 'fixtures/wallpaper-part2.flac', url: 'fixtures/wallpaper-part2.flac', sampleRate: 44100, gapless: null };
+const flac = await realPair(flac1, flac2);
 {
   const { out, eng, boundary } = flac;
   const ctx = new OfflineAudioContext(2, SR, SR);
-  const [a, b] = await Promise.all(['wallpaper-part1.flac', 'wallpaper-part2.flac'].map(f => fetch('../music/gapless-test/' + f).then(r => r.arrayBuffer()).then(x => ctx.decodeAudioData(x))));
+  const [a, b] = await Promise.all(['wallpaper-part1.flac', 'wallpaper-part2.flac'].map(f => fetch('fixtures/' + f).then(r => r.arrayBuffer()).then(x => ctx.decodeAudioData(x))));
   const ref = new Float32Array(out.length); const A = a.getChannelData(0), B = b.getChannelData(0);
   for (let i = 0; i < out.length; i++) { const j = A.length - boundary + i; ref[i] = j < A.length ? A[j] : B[j - A.length]; }
   const md = maxDiff(out, ref, 0, out.length);
@@ -80,7 +83,7 @@ const cases = [
   ['MP3（有 LAME 头）', mp1, mp2, 0, true],
   ['MP3（无 LAME 头，但给引擎提供 delay/padding 元数据 → 引擎自行裁剪）', nx(mp1, 1), nx(mp2, 2), 0, true],
   ['对照组：MP3 无 LAME 头且无元数据（预期出现间隙/错位）', { ...nx(mp1, 1), gapless: null }, { ...nx(mp2, 2), gapless: null }, 0, false],
-  ['对照组：FLAC 人为插入 10 ms 间隙（预期被检测到）', T('gapless-test/wallpaper-part1.flac'), T('gapless-test/wallpaper-part2.flac'), 0.010, false],
+  ['对照组：FLAC 人为插入 10 ms 间隙（预期被检测到）', flac1, flac2, 0.010, false],
 ];
 const flacSil = longestSilenceMs(flac.out, flac.boundary - SR / 2, flac.boundary + SR / 2, 1e-3);
 for (const [label, a, b, gap, expectGapless] of cases) {

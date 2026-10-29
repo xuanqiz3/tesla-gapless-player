@@ -15,6 +15,8 @@
 - **浏览分类**：专辑 | 全部歌曲 | 艺人 | 收藏 | 最近播放
 - **睡眠定时**：15 / 30 / 45 / 60 分钟后自动暂停
 - **最近播放**：本地记录最近 20 首
+- **底部迷你栏**：浏览区几乎全屏；点迷你栏/「展开」再打开完整控制面板（车机优先）
+- **国内连通性试听**：仓库内置短小 MP3（连通性测试 / 茉莉花合成 / 拨弦 / Espressif 样例），默认直连扬声器
 - Media Session、离线缓存（Service Worker）、大触控深色中文 UI
 
 ## 目录
@@ -22,7 +24,7 @@
 index.html  app.js  engine.js  sw.js  manifest.json  icons/
 serve.py                 极简静态服务器（支持 Range）
 scripts/scan.py          扫描 music/，生成 music/library.json
-music/                   音乐与 library.json、LICENSES.md（测试音源均为 CC BY 4.0）
+music/                   音乐与 library.json、LICENSES.md（连通性试听 CC0 + Wallpaper CC BY 4.0）
 tests/offline.html       OfflineAudioContext 离线渲染测试页
 tests/run_tests.py       无头 Chromium（Playwright）自动测试
 ```
@@ -53,13 +55,14 @@ Apple Music 订阅下载、网易云 .ncm、QQ 音乐加密格式都有 DRM，�
 - JS 定时器只负责“提前准备”。切歌由音频时钟上的标记节点触发 `ended` 事件，所以即使后台定时器被限流，也不会出现停顿。
 - 交叉淡入采用等功率曲线（sin/cos）。**同一专辑的连续曲目始终无缝，不做淡入淡出。**
 - 暂停使用 `AudioContext.suspend()`，已经排好的下一首不会丢。
-- Media Session：设置了曲目信息和播放/暂停/上一首/下一首/拖动进度的处理函数。默认把音频经一个 `<audio>` 元素输出，这样浏览器才会把本页当作“正在播放媒体”。
+- Media Session：设置了曲目信息和播放/暂停/上一首/下一首/拖动进度的处理函数。**默认直连 AudioContext → 扬声器**（车机更稳）；可选「经媒体元素输出」以尝试方向盘控件。
 - 设置保存在 `localStorage` 的 `tp-settings`；收藏 `tp-favorites`；最近播放 `tp-recent`。
 - Service Worker 会缓存应用外壳。点「离线缓存全部歌曲」可以把音乐存进浏览器缓存。
 
 ## 已验证 / 未验证
 已在无头 Chromium 上自动验证（`tests/run_tests.py`）：
-- 合成正弦 / FLAC / 带与不带 LAME 头的 MP3 无缝
+- 合成正弦 / FLAC（fixtures）/ 带与不带 LAME 头的 MP3 无缝
+- 底部迷你栏布局与展开面板
 - 交叉淡入等功率
 - 实时 AudioContext 下下一首提前排进音频时钟并自动切歌
 - 循环 / 随机 / 音量 / 收藏控件与基础逻辑
@@ -75,4 +78,4 @@ Apple Music 订阅下载、网易云 .ncm、QQ 音乐加密格式都有 DRM，�
 本仓库通过 GitHub Pages 发布。推送到 `main` 后约 1–2 分钟生效。
 
 ## 关于版权
-测试音源为 CC BY 4.0。请勿上传受版权保护且无权分发的音乐到公开仓库。
+测试音源见 `music/LICENSES.md`（连通性试听多为 CC0，Wallpaper 为 CC BY 4.0）。请勿上传受版权保护且无权分发的音乐到公开仓库。
